@@ -1,0 +1,40 @@
+{
+  "name": "verity",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "start": "tsx src/api/server.ts",
+    "mcp": "tsx src/mcp/server.ts",
+    "scoreboard": "tsx src/scoreboard/run.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "^2.0.8",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@okxweb3/app-x402-core": "^0.2.1",
+    "@okxweb3/app-x402-evm": "^0.2.0",
+    "@okxweb3/app-x402-hono": "^0.2.0",
+    "@solana/web3.js": "^1.98.4",
+    "@the-convocation/twitter-scraper": "^0.22.3",
+    "bs58": "^6.0.0",
+    "dotenv": "^17.4.2",
+    "ethers": "^6.17.0",
+    "hono": "^4.12.28",
+    "tough-cookie": "^6.0.2",
+    "viem": "^2.54.6",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

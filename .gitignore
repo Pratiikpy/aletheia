@@ -1,0 +1,37 @@
+# Secrets — never commit
+.env
+.env.*
+.secrets/
+*.pem
+*.key
+
+# Dependencies and build output
+node_modules/
+dist/
+out/
+build/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime state, caches and artifacts
+cache/
+data/artifacts/
+*.log
+.pytest_cache/
+.ruff_cache/
+
+# Local scratch — working notes, probe output, one-off dumps
+.scratch/
+*.tmp
+
+# Vendored OKX skill packs — third-party tooling, not part of this service
+.agents/
+
+# internal only — never publish
+SETUP.md
+DEPLOY.md
+skills-lock.json
+scripts/provision-do.mts
+docs/okx-onchainos/

@@ -1,0 +1,200 @@
+{
+  "tier": "flag",
+  "n": 17,
+  "verity": {
+    "tp": 1,
+    "tn": 14,
+    "fp": 0,
+    "fn": 2,
+    "accuracy": 0.8823529411764706,
+    "precision": 1,
+    "recall": 0.3333333333333333,
+    "specificity": 1,
+    "fpr": 0
+  },
+  "goplus_baseline": {
+    "tp": 0,
+    "tn": 14,
+    "fp": 0,
+    "fn": 2,
+    "accuracy": 0.875,
+    "precision": null,
+    "recall": 0,
+    "specificity": 1,
+    "fpr": 0
+  },
+  "generated_at": "2026-07-08T03:34:41.795Z",
+  "note": "Positive-class honeypot RECALL is additionally validated by a deterministic on-fork honeypot fixture (scripts/test-honeypot-positive.mts). Real honeypot addresses expand this labeled set over time.",
+  "rows": [
+    {
+      "symbol": "USDT",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "CAUTION",
+      "score": 95,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "USDC",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "GO",
+      "score": 92,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "WETH",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "GO",
+      "score": 100,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "PEPE",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "GO",
+      "score": 91,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "LINK",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "GO",
+      "score": 91,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "UNI",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "GO",
+      "score": 99,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "SHIB",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "GO",
+      "score": 89,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "LDO",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "GO",
+      "score": 90,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "ENS",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "CAUTION",
+      "score": 68,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "stETH",
+      "chain": "ethereum",
+      "label": "clean",
+      "verity": "CAUTION",
+      "score": 70,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "CAKE",
+      "chain": "bsc",
+      "label": "clean",
+      "verity": "CAUTION",
+      "score": 71,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "BSC-USD",
+      "chain": "bsc",
+      "label": "clean",
+      "verity": "CAUTION",
+      "score": 70,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "WBNB",
+      "chain": "bsc",
+      "label": "clean",
+      "verity": "CAUTION",
+      "score": 71,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "USDC.base",
+      "chain": "base",
+      "label": "clean",
+      "verity": "CAUTION",
+      "score": 71,
+      "predictedRisky": false,
+      "correct": true,
+      "gpRisky": false
+    },
+    {
+      "symbol": "HONEYPOT",
+      "chain": "ethereum",
+      "label": "honeypot",
+      "verity": "CAUTION",
+      "score": 48,
+      "predictedRisky": false,
+      "correct": false,
+      "gpRisky": false
+    },
+    {
+      "symbol": "Etherscan-hp",
+      "chain": "ethereum",
+      "label": "honeypot",
+      "verity": "CAUTION",
+      "score": 48,
+      "predictedRisky": false,
+      "correct": false,
+      "gpRisky": false
+    },
+    {
+      "symbol": "HONEYPOT-FIXTURE",
+      "chain": "ethereum",
+      "label": "honeypot",
+      "verity": "AVOID",
+      "score": 5,
+      "predictedRisky": true,
+      "correct": true,
+      "gpRisky": null
+    }
+  ]
+}

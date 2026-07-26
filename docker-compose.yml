@@ -1,0 +1,25 @@
+services:
+  verity:
+    build: .
+    image: verity:latest
+    ports:
+      - "8788:8788"
+    env_file:
+      - .env
+    environment:
+      - CRAWL4AI_URL=http://crawl4ai:11235
+    restart: unless-stopped
+    depends_on:
+      - crawl4ai
+
+  # JS-rendering web reader for Settle It / Prove-a-fact evidence (Jina Reader stays as fallback).
+  # Memory-capped so a heavy crawl can never OOM the main app.
+  crawl4ai:
+    build:
+      context: .
+      dockerfile: crawl4ai.Dockerfile
+    shm_size: 1gb
+    mem_limit: 2g
+    environment:
+      - CRAWL4AI_API_TOKEN=${CRAWL4AI_TOKEN}
+    restart: unless-stopped

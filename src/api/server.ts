@@ -41,8 +41,26 @@ import { huntImpersonation } from "../actionguard/impersonation.js";
 import { actionGuard } from "../actionguard/actionguard.js";
 import { CHAINS, CHAIN_DATA_COVERAGE, chainsWithWalletCoverage, type ChainKey } from "../config.js";
 import { OKX_PAY_ENABLED, buildOkxPayMiddleware, initOkxPay, paidRouteInfo, usageReply } from "./okxpay.js";
+
 import { grantsInternalAccess } from "./access.js";
 import { rateLimited } from "./ratelimit.js";
+/** Authorizations already served, so one cannot buy the work twice.
+ *
+ *  Bounded and time-ordered: an EIP-3009 authorization is valid only for its `validBefore` window,
+ *  so anything older than an hour can never be replayed successfully and is dropped. Without the
+ *  bound this map would grow for the life of the process. */
+const SPENT_AUTHORIZATIONS = new Map<string, number>();
+const AUTHORIZATION_TTL_MS = 60 * 60 * 1000;
+
+function rememberAuthorization(nonce: string): void {
+  const now = Date.now();
+  SPENT_AUTHORIZATIONS.set(nonce, now);
+  if (SPENT_AUTHORIZATIONS.size > 5000) {
+    for (const [k, t] of SPENT_AUTHORIZATIONS) {
+      if (now - t > AUTHORIZATION_TTL_MS) SPENT_AUTHORIZATIONS.delete(k);
+    }
+  }
+}
 
 const app = new Hono();
 
@@ -126,6 +144,44 @@ if (OKX_PAY_ENABLED) {
 
   // Official OKX Agent Payments (x402) — must be registered BEFORE routes so it can gate them.
   // Only the registered A2MCP endpoints are charged; everything else passes through free.
+  /** An authorization already seen buys the work once, not twice.
+   *
+   *  Settlement runs asynchronously, so between accepting a payment and the chain recording its
+   *  nonce as spent there is a window in which the same authorization verifies again and is served.
+   *  Measured on the sibling ASP before this existed: one $0.01 authorization bought four
+   *  deliveries. Aletheia showed the same behaviour.
+   *
+   *  The token contract still decides who keeps the fee — an EIP-3009 nonce can only settle once —
+   *  but that is a different question from who receives the work. Because the nonce is single-use by
+   *  construction, a retry carrying the same one could never have settled, so treating it as spent
+   *  on first sight refuses nothing a caller could legitimately have completed.
+   *
+   *  Returning 402 directly rather than stripping headers: these routes are served in-process, so
+   *  there is no downstream proxy whose body would need rebuilding. */
+  app.use("*", async (c, next) => {
+    try {
+      const header = c.req.header("PAYMENT-SIGNATURE") || c.req.header("X-PAYMENT");
+      if (!header) return next();
+      let nonce = "";
+      try {
+        const decoded = JSON.parse(Buffer.from(header, "base64").toString("utf8"));
+        const n = decoded?.payload?.authorization?.nonce ?? decoded?.nonce;
+        nonce = typeof n === "string" ? n : "";
+      } catch { nonce = ""; }
+      // An unreadable header is left to the paywall to reject on its own terms.
+      if (!nonce) return next();
+      if (SPENT_AUTHORIZATIONS.has(nonce)) {
+        return c.json({
+          error: "payment_replayed",
+          detail: "This authorization has already been used. An EIP-3009 nonce is single-use; "
+                  + "request a fresh challenge and sign a new one.",
+        }, 402);
+      }
+      rememberAuthorization(nonce);
+    } catch { /* fail open: the paywall still decides */ }
+    return next();
+  });
+
   app.use("*", buildOkxPayMiddleware());
 
   // Runs AFTER payment has settled, BEFORE the route handler. A request that carries no input at all

@@ -30,9 +30,18 @@ export async function signReceipt(payload: Record<string, unknown>): Promise<Sig
   if (!/^0x[a-fA-F0-9]{64}$/.test(PK)) return null;
   try {
     const account = privateKeyToAccount(PK);
-    // stable, recursive key order so the exact bytes are reproducible by anyone re-serializing the
-    // same object (a plain replacer array only sorts top-level keys AND drops nested-object fields).
-    const message = stableStringify(payload);
+    // The issuing service is named inside the signed bytes.
+    //
+    // This key is shared with a sibling ASP, so recovering the signer proves the receipt came from
+    // one of them and cannot say which. Verified against both published key endpoints: Aletheia and
+    // Reach advertise the identical address, and neither signed block carried anything naming its
+    // source — so a buyer told to "compare the recovered signer to establish who issued this" had no
+    // way to complete that comparison.
+    //
+    // Naming the service inside the payload fixes it without rotating the key, which matters: a new
+    // key would invalidate offline verification of every receipt already issued. Old receipts stay
+    // verifiable and simply lack the field; new ones are attributable.
+    const message = stableStringify({ issuer: "aletheia", ...payload });
     const signature = await account.signMessage({ message });
     return {
       signer: account.address,
@@ -64,6 +73,10 @@ export type ReceiptVerification = {
   recoveredSigner: `0x${string}` | null;
   claimedSigner: string | null;
   expectedSigner: `0x${string}` | null;
+  /** The service named inside the signed bytes. Null on receipts issued before the field existed. */
+  issuer: string | null;
+  /** Whether that name is this service. Null when the receipt carries no issuer to check. */
+  issuerMatches: boolean | null;
   verdict: "VALID" | "VALID_SIGNATURE_UNKNOWN_ISSUER" | "VALID_UNATTRIBUTED" | "INVALID_SIGNATURE";
 };
 
@@ -96,12 +109,25 @@ export async function verifyReceipt(
       : attributed === true
         ? "VALID"
         : "VALID_UNATTRIBUTED";
+  // The signing key is shared with a sibling ASP, so the recovered address alone cannot say which of
+  // them issued this. The issuer is named inside the signed bytes, which means reading it back is a
+  // check and not a courtesy: an attacker cannot relabel it without invalidating the signature.
+  // Receipts issued before the field existed report null rather than failing — they are still
+  // genuine, just not self-identifying.
+  let issuer: string | null = null;
+  try {
+    const parsed = JSON.parse(r.message);
+    issuer = typeof parsed?.issuer === "string" ? parsed.issuer : null;
+  } catch { issuer = null; }
+
   return {
     valid,
     attributed,
     recoveredSigner: recovered,
     claimedSigner: r.signer ?? null,
     expectedSigner: (expected as `0x${string}` | null),
+    issuer,
+    issuerMatches: issuer === null ? null : issuer === "aletheia",
     verdict,
   };
 }

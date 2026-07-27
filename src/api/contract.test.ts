@@ -25,13 +25,15 @@ function advertisedInputs(): Array<{ route: string; fields: string[] }> {
   const routeBlock = /"(\/[^"]+)":\s*\{[\s\S]*?description:\s*"((?:[^"\\]|\\.)*)"/g;
   let m: RegExpExecArray | null;
   while ((m = routeBlock.exec(OKXPAY_SRC)) !== null) {
-    const [, route, description] = m;
+    const route = m[1];
+    const description = m[2];
+    if (!route || !description) continue;
     const input = /Input:\s*\{([^}]*)\}/.exec(description);
-    if (!input) continue;
+    if (!input?.[1]) continue;
     const fields = input[1]
       .split(",")
       // Drop the prose that documents an enum's values, e.g. "tier?: 'flag' | 'full'".
-      .map((part) => part.split(":")[0].trim().replace(/\?$/, ""))
+      .map((part) => (part.split(":")[0] ?? "").trim().replace(/\?$/, ""))
       .filter((name) => /^[a-z_][a-z0-9_]*$/i.test(name));
     if (fields.length) out.push({ route, fields });
   }

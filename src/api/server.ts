@@ -96,6 +96,34 @@ if (OKX_PAY_ENABLED) {
     // `unpaidResponseBody` hook (see okxpay.ts) — header by the SDK, body by the hook — so there is no
     // hand-rolled 402 override here to fight Hono's `set res` header-merge. Nothing to patch post-hoc.
   });
+  // A paid call that carries no input is answered here, BEFORE the paywall, so nothing settles.
+  //
+  // The contract-instead-of-400 reply below already existed, but it ran after the payment middleware —
+  // so the caller was charged and then told what they should have sent. Measured on a live call: the
+  // wallet lost the full fee and no work was performed. Handing someone a fee and no artifact is the
+  // complaint most likely to cost a customer permanently, and it is exactly the one a real buyer left
+  // against a sibling ASP.
+  //
+  // The status stays 200 and the body is unchanged. That is deliberate: OKX review specifically
+  // required this agent to stop rejecting a paid request whose body was absent, so answering with a
+  // 402 here would trade one defect for a listing risk. Returning without calling next() skips the
+  // paywall entirely — same reply as before, minus the charge.
+  //
+  // Gated on payment actually being presented. An unpaid empty probe must still fall through to the
+  // paywall and receive the canonical 402, which is what OKX's availability check reads.
+  app.use("*", async (c, next) => {
+    if (c.req.method !== "POST" || !paidRouteInfo(new URL(c.req.url).pathname)) return next();
+    if (!(c.req.header("PAYMENT-SIGNATURE") || c.req.header("X-PAYMENT"))) return next();
+    let raw = "";
+    try { raw = await c.req.raw.clone().text(); } catch { return next(); }
+    const trimmed = raw.trim();
+    if (trimmed && trimmed !== "{}" && trimmed !== "null") return next();
+    return c.json({
+      ...usageReply(new URL(c.req.url).pathname),
+      not_charged: "no input was supplied, so nothing was billed. Send the input shown above together with payment.",
+    }, 200);
+  });
+
   // Official OKX Agent Payments (x402) — must be registered BEFORE routes so it can gate them.
   // Only the registered A2MCP endpoints are charged; everything else passes through free.
   app.use("*", buildOkxPayMiddleware());
@@ -603,9 +631,17 @@ app.post("/ask", async (c) => {
 /** Research on ANYTHING — auto-detects token / wallet / solana / repo / URL / topic and runs the right deep investigation. */
 app.post("/research", async (c) => {
   const body = await c.req.json().catch(() => ({}));
-  const subject = body.subject ?? body.topic ?? body.query ?? body.address ?? body.url;
+  // `question` is what this endpoint's own published contract advertises — the x402 challenge reads
+  // "Input: {subject | question}" — and it was the one key not accepted, so a caller who followed the
+  // documentation paid $0.10 and received a 400. `claim` is here for the same reason: the service is
+  // described as researching a question, claim or link, so all three names it invites must work.
+  const subject = body.subject ?? body.question ?? body.claim ?? body.topic ?? body.query
+    ?? body.address ?? body.url;
   const chain = (body.chain ?? "ethereum") as ChainKey;
-  if (!subject) return c.json({ error: "provide a subject: a token/wallet address, a URL, or a topic/claim" }, 400);
+  if (!subject) return c.json({
+    error: "provide a subject: a token/wallet address, a URL, or a topic/claim",
+    accepted_fields: ["subject", "question", "claim", "topic", "query", "address", "url"],
+  }, 400);
   try { return c.json(await researchAnything(subject, chain)); }
   catch (e: any) { return c.json({ error: "research_failed", detail: e?.message ?? String(e) }, 500); }
 });

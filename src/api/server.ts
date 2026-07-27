@@ -44,6 +44,7 @@ import { OKX_PAY_ENABLED, buildOkxPayMiddleware, initOkxPay, paidRouteInfo, usag
 
 import { grantsInternalAccess } from "./access.js";
 import { rateLimited } from "./ratelimit.js";
+import { ACCEPTED_FIELDS, ignoredInputNote } from "./accepted.js";
 /** Authorizations already served, so one cannot buy the work twice.
  *
  *  Bounded and time-ordered: an EIP-3009 authorization is valid only for its `validBefore` window,
@@ -180,6 +181,37 @@ if (OKX_PAY_ENABLED) {
       rememberAuthorization(nonce);
     } catch { /* fail open: the paywall still decides */ }
     return next();
+  });
+
+  /** Annotate the answer when part of the request was not understood.
+   *
+   *  Runs after the handler and adds `ignored_input` to the JSON it produced, so a caller who
+   *  misspells a field is told rather than silently given the default. Doing it here rather than in
+   *  each of twenty-odd handlers keeps one rule in one place; touching every route to add the same
+   *  line is how the rule drifts.
+   *
+   *  Only successful JSON responses are touched. A 402 challenge, a 400, or anything non-JSON is
+   *  passed through untouched — adding a field to a payment challenge would change bytes the SDK and
+   *  the validator both read. */
+  app.use("*", async (c, next) => {
+    let body: unknown = null;
+    if (c.req.method === "POST" && ACCEPTED_FIELDS[new URL(c.req.url).pathname]) {
+      try { body = await c.req.raw.clone().json(); } catch { body = null; }
+    }
+    await next();
+    try {
+      if (!body || c.res.status !== 200) return;
+      if (!(c.res.headers.get("content-type") || "").includes("application/json")) return;
+      const note = ignoredInputNote(new URL(c.req.url).pathname, body);
+      if (!note) return;
+      const payload = await c.res.clone().json();
+      if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+        c.res = new Response(JSON.stringify({ ...payload, ignored_input: note }), {
+          status: 200,
+          headers: c.res.headers,
+        });
+      }
+    } catch { /* never let the annotation break the answer it is annotating */ }
   });
 
   app.use("*", buildOkxPayMiddleware());

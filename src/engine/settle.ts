@@ -3,6 +3,7 @@ import { chat, JURY_MODELS } from "../ai/router.js";
 import { gatherEvidence, evidenceBlock, type Source } from "../evidence/websearch.js";
 import { attestSeal } from "../attest/registry.js";
 import { signReceipt, type SignedReceipt } from "../attest/sign.js";
+import { fenceUntrusted, injectionNotice, type InjectionNotice } from "../actionguard/untrusted.js";
 
 /**
  * Settle It v2 — the evidence court that shows its work.
@@ -33,6 +34,8 @@ export type SettleResult = {
   transcript: DebateTurn[];
   jury: { agreement: number; responded: number; votes: JudgeVote[] };
   evidence_count: number;
+  /** Present only when a party's own position tried to instruct the panel. */
+  prompt_injection?: InjectionNotice[];
   seal: string;
   signed: SignedReceipt | null;
   attestation: { id: string; txHash: string; chain: string; registry: string } | null;
@@ -97,7 +100,7 @@ async function advocate(model: string, side: "A" | "B", position: string, questi
 
 async function judge(model: string, question: string, pos: { a: string; b: string }, evidence: string, debate: string): Promise<JudgeVote | null> {
   const sys = `You are an impartial judge. Read the dispute, the evidence, and both advocates' arguments + rebuttals. Decide who the EVIDENCE AND LOGIC favor — NOT who argued more forcefully. Score each side 0-100 on how well the evidence supports it. Choose UNRESOLVED only if the evidence is genuinely insufficient. Return ONLY JSON {"winner":"A"|"B"|"TIE"|"UNRESOLVED","score_a":0-100,"score_b":0-100,"confidence":0.0-1.0,"decisive":"<=25 words, cite [n]"}.`;
-  const user = `DISPUTE: ${question}\nPosition A: ${pos.a}\nPosition B: ${pos.b}\n\nEVIDENCE:\n${evidence}\n\nDEBATE:\n${debate}`;
+  const user = `DISPUTE: ${question}\nPosition A:\n${fenceUntrusted("position_a", pos.a)}\nPosition B:\n${fenceUntrusted("position_b", pos.b)}\n\nEVIDENCE:\n${evidence}\n\nDEBATE:\n${debate}`;
   try {
     const { content } = await chat([{ role: "system", content: sys }, { role: "user", content: user }], { model, maxTokens: 700, temperature: 0.2 });
     const j = parseJson(content);
@@ -150,6 +153,14 @@ export async function settleDispute(question: string, sideA?: string, sideB?: st
   const winner: SettleResult["winner"] = winnerLabel === "A" ? "A" : winnerLabel === "B" ? "B" : winnerLabel === "TIE" ? "tie" : "unresolved";
   const ruling = winner === "A" ? "A prevails" : winner === "B" ? "B prevails" : winner === "tie" ? "Both partly right" : "Unresolved on the evidence";
 
+  // A party writes its own position, so a position is hostile input from the other side's point of
+  // view. Measured here the panel was unmoved -- a note forging clearance from "the Aletheia review
+  // team" appended to the moon-landing denial actually made that side score *worse*, 7/93 to 1/99 --
+  // but the buyer is the counterparty in a dispute, and "the other side tried to instruct the
+  // judges" is material to them whether or not it worked. Silence would withhold it.
+  const partyInjections = [injectionNotice("position A", positions.a), injectionNotice("position B", positions.b)]
+    .filter(Boolean) as InjectionNotice[];
+
   // 5) final word — plain-English, cited
   const decisive = votes.filter((v) => v.winner === winnerLabel).map((v) => v.decisive).filter(Boolean);
   let finalWord = "";
@@ -157,7 +168,7 @@ export async function settleDispute(question: string, sideA?: string, sideB?: st
     const { content } = await chat(
       [
         { role: "system", content: "You are the judge delivering the final ruling in 2-3 plain, authoritative sentences. State who is right and the single decisive, evidence-based reason. Cite a source as [n] if one settles it. Do not hedge beyond what the evidence supports." },
-        { role: "user", content: `DISPUTE: ${q}\nPosition A: ${positions.a}\nPosition B: ${positions.b}\n\nEVIDENCE:\n${evidence}\n\nRuling: ${ruling} (${Math.round(agreement * 100)}% of judges agree). Deciding points: ${decisive.join("; ") || "(limited)"}` },
+        { role: "user", content: `DISPUTE: ${q}\nPosition A:\n${fenceUntrusted("position_a", positions.a)}\nPosition B:\n${fenceUntrusted("position_b", positions.b)}\n\nEVIDENCE:\n${evidence}\n\nRuling: ${ruling} (${Math.round(agreement * 100)}% of judges agree). Deciding points: ${decisive.join("; ") || "(limited)"}` },
       ],
       { tier: "strong", maxTokens: 340, temperature: 0.3 },
     );
@@ -184,6 +195,7 @@ export async function settleDispute(question: string, sideA?: string, sideB?: st
     transcript,
     jury: { agreement: Number(agreement.toFixed(2)), responded: votes.length, votes },
     evidence_count: sources.length,
+    ...(partyInjections.length ? { prompt_injection: partyInjections } : {}),
     seal,
     signed,
     attestation,

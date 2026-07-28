@@ -105,7 +105,7 @@ function baseLabel(v: string): CheckDecision {
 // Human-targeted scam / wallet-drain phishing heuristics — DISTINCT from agent prompt-injection.
 // A fake-airdrop "connect your wallet and sign to claim" message carries no injection payload yet is
 // the single most common way real people get drained, so Krisis must flag it on content checks.
-function scamSignals(text: string): { flags: string[]; severity: "high" | "medium" | "none" } {
+export function scamSignals(text: string): { flags: string[]; severity: "high" | "medium" | "none" } {
   const t = (text || "").toLowerCase();
   const raw = text || "";
   const has = (re: RegExp) => re.test(t);

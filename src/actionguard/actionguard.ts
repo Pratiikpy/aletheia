@@ -3,6 +3,7 @@ import type { ChainKey } from "../config.js";
 import { preTxGuardian } from "./pretx.js";
 import { checkCounterparty } from "./counterparty.js";
 import { scanContent } from "./promptfw.js";
+import { scamSignals } from "../engine/check.js";
 import { htmlToText } from "../evidence/prove.js";
 import { safeFetch } from "../net/safeFetch.js";
 
@@ -90,8 +91,27 @@ export async function actionGuard(action: Action): Promise<ActionGuardResult> {
       const fw = scanContent(content);
       const fwDec: ActionDecision = fw.verdict === "INJECTION" ? "BLOCK" : fw.verdict === "SUSPICIOUS" ? "REVIEW" : "ALLOW";
       checks.push({ name: "prompt_firewall", decision: fwDec, detail: fw.summary });
-      decision = fwDec;
-      reasons.push(...fw.hits.map((h) => `${h.category}: ${h.detail}`));
+      // The scam scan was already written, already good, and simply never called from here.
+      //
+      // A textbook drainer lure — "your wallet is flagged, enter your 12-word seed phrase at
+      // okx-wallet-recovery… within 30 minutes or your balance will be frozen" — came back REVIEW,
+      // with `urgency_coercion` as the only signal. The prompt firewall was the sole check on this
+      // path, and a phishing message aimed at a human is not a prompt injection, so it saw only the
+      // pressure tactic and missed the seed-phrase ask entirely. For a product sold as the one gate
+      // an agent passes through before it acts, the most unambiguous BLOCK in crypto returning
+      // "needs a second look" is the wrong answer.
+      //
+      // `scamSignals` scores that same text `high` on its first rule. /check has been calling it all
+      // along; ActionGuard had not.
+      const scam = scamSignals(content);
+      const scamDec: ActionDecision = scam.severity === "high" ? "BLOCK" : scam.severity === "medium" ? "REVIEW" : "ALLOW";
+      checks.push({
+        name: "scam_signals",
+        decision: scamDec,
+        detail: scam.flags.length ? `${scam.severity.toUpperCase()} — ${scam.flags.join("; ")}.` : "No scam/phishing patterns detected.",
+      });
+      decision = worst(fwDec, scamDec);
+      reasons.push(...fw.hits.map((h) => `${h.category}: ${h.detail}`), ...scam.flags);
       dlp = dlpScan(content);
     } else if (action.type === "counterparty") {
       const cp = await checkCounterparty(action.chain, action.address);

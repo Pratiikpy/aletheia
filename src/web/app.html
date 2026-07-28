@@ -43,7 +43,43 @@
   .mpanel button:hover { color: var(--text); background: var(--panel-2); }
   .mpanel button.on { color: var(--text); background: var(--panel-2); border-color: var(--border); }
   @media (max-width: 900px) { .tag { display: none; } }
-  @media (max-width: 720px) { nav { gap: 2px; } nav > button, .mtrig { padding: 7px 9px; font-size: 13px; } }
+  /* Let the header wrap instead of pushing the page sideways.
+   *
+   * Measured on a phone-width viewport: the document was 761px wide inside a 485px window — 276px of
+   * horizontal overflow, so the whole page slid left and right under the thumb. The cause was this
+   * nav: eleven items in a nowrap flex row, 622px of them, in a flex parent that never let it shrink.
+   * Tightening the padding at this breakpoint made the row narrower and still nowhere near narrow
+   * enough. Aletheia was the only one of the five that did this; the others contain their wide
+   * tables properly.
+   *
+   * Wrapping rather than `overflow-x: auto` on the nav, deliberately. Scrolling the nav would clip
+   * every dropdown: `.mpanel` is absolutely positioned, and an ancestor with overflow becomes its
+   * clipping container, so the menus would be cut off or unreachable — a worse defect than the one
+   * being fixed, and one that only shows up if you open a menu after changing this. A taller header
+   * on a narrow screen costs nothing. */
+  @media (max-width: 720px) {
+    .head { flex-wrap: wrap; gap: 10px 12px; }
+    nav { gap: 2px; flex-wrap: wrap; justify-content: flex-start; margin-left: 0; min-width: 0; }
+    nav > button, .mtrig { padding: 7px 9px; font-size: 13px; }
+    /* On a narrow screen a dropdown becomes a full-width sheet under the header, rather than
+     * hanging off its trigger.
+     *
+     * Anchoring to the trigger cannot work once the row wraps, and both alternatives were measured
+     * failing. Left-anchored: any trigger within 168px of the right edge pushed its panel past the
+     * boundary and the page overflowed by 57px — done by a *closed* panel, which is the part worth
+     * remembering, because `visibility: hidden` still occupies layout and still extends the
+     * scrollable area, so nothing is visible on screen and only measurement finds it.
+     * Right-anchored: the triggers that wrap to the start of the second row pushed their panels off
+     * the LEFT edge instead — "Truth" lost 81px of a 168px menu. No horizontal scroll, but half the
+     * menu unreachable, which is worse.
+     *
+     * `.menu` drops to static so the panel positions against the sticky header instead, pinned to
+     * both edges. It cannot overflow either side, and it is a larger tap target on the device where
+     * that matters most. */
+    .menu { position: static; }
+    .mpanel { position: absolute; left: 12px; right: 12px; width: auto; min-width: 0;
+              max-width: none; top: calc(100% + 6px); }
+  }
 
   .hero { padding: 46px 0 26px; }
   .kicker { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .16em; color: var(--go); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
